@@ -1,257 +1,86 @@
-from datetime import datetime
-
+from datetime import datetime, timedelta
 import uuid
 from flask import Flask, request, jsonify
 from firebase_admin import credentials, auth, initialize_app, firestore
-
 import firebase_admin
 from flask_cors import CORS,cross_origin
+from google.cloud.exceptions import NotFound
+import logging
+from werkzeug.utils import secure_filename
+import os   
+from google.auth.transport import requests
+from operator import itemgetter
 
 
+import io
+import requests
+from PyPDF2 import PdfReader
+# from google.cloud import storage
+# # Set up logging
+# logging.basicConfig(level=logging.DEBUG)
+###############################################################
+from config.firebase_config import initialize_firebase_app
+from routes.user_routes import user_routes
+from routes.documents_op_s import upload_routes,delete_routes,read_routes
+from routes.register_routes import register_routes
+from routes.login_routes import login_routes
+from routes.stocks_routes import getstocks_routes, getstockid_routes, putstockid_routes, poststocks_routes, delstockid_routes
+from routes.transactions_routes import gettransactions_routes,gettransactionid_routes,posttransactions_routes
+from routes.events_routes import getevents_routes,getspecificevents_routes,addevents_routes
+from routes.reports_routes import portfolio_routes,stockprofitreport_routes,stocktransactionsreport_routes, predict_stock_future_transactions_routes,fulltransactionsreport_routes,getprofitperdayreport_routes
+###############################################################
 
 app = Flask(__name__)
 CORS(app, resources={r"/Login/*": {"origins": "http://localhost:3000"}})
-CORS(app, resources={r"/stockslist/*": {"origins": "http://localhost:3000"}}, methods=["DELETE"])
+CORS(app, resources={r"/stocks/*": {"origins": "http://localhost:3000"}}, methods=["DELETE","GET"])
 CORS(app, resources={r"/delete/*": {"origins": "http://localhost:3000"}}, methods=["DELETE"])
+CORS(app, resources={r"/portfolio_management/*": {"origins": "http://localhost:3000"}}, methods=["GET"])
+CORS(app, resources={r"/view_portfolio/*": {"origins": "http://localhost:3000"}}, methods=["GET","POST"])
+CORS(app, resources={r"/upload_Docs/*": {"origins": "http://localhost:3000"}}, methods=["GET","POST"])
 
-# app.register_blueprint(stock_routes)
 
-# Initialize Firebase Admin SDK
-cred = credentials.Certificate("/Pjs/back_end_firebase/stocks-9bc4d-firebase-adminsdk-58bc0-89141fb9ff.json")
+# # # Initialize Firebase Admin SDK
+# cred = credentials.Certificate("/Pjs/back_end_firebase/stocks-9bc4d-firebase-adminsdk-58bc0-89141fb9ff.json")
 
-firebase_admin.initialize_app(cred)
 
-# Initialize Firestore
+# firebase_admin.initialize_app(cred)
+# Initialize Firebase
+initialize_firebase_app()
+
+# # Initialize Firestore
 db = firestore.client()
+# storage_client = storage.Client()
 stocks_collection = db.collection("stocks")
+######################################################
+# User
+app.register_blueprint(user_routes)  
+app.register_blueprint(register_routes)  
+app.register_blueprint(login_routes)  
+# Documents Operations
+app.register_blueprint(upload_routes)  
+app.register_blueprint(delete_routes)  
+app.register_blueprint(read_routes)  
+# Stocks
+app.register_blueprint(getstocks_routes)  
+app.register_blueprint(getstockid_routes)  
+app.register_blueprint(poststocks_routes)  
+app.register_blueprint(putstockid_routes)  
+app.register_blueprint(delstockid_routes)  
+# Transactions
+app.register_blueprint(gettransactions_routes)  
+app.register_blueprint(gettransactionid_routes)  
+app.register_blueprint(posttransactions_routes)  
+# Events
+app.register_blueprint(getevents_routes)  
+app.register_blueprint(addevents_routes)  
+app.register_blueprint(getspecificevents_routes)  
+
+# Reports
+app.register_blueprint(portfolio_routes)  
+app.register_blueprint(stocktransactionsreport_routes)  
+app.register_blueprint(stockprofitreport_routes)  
+app.register_blueprint(predict_stock_future_transactions_routes)  
+app.register_blueprint(fulltransactionsreport_routes)  
+app.register_blueprint(getprofitperdayreport_routes)  
 
 
-# Route for user registration
-@app.route("/register", methods=["POST"])
-@cross_origin()
-def register():
-    try:
-        # Get user credentials from the request
-        data = request.json
-        email = data["email"]
-        password = data["password"]
-
-        # Create a new user with Firebase authentication
-        user = auth.create_user(
-            email=email,
-            email_verified=False,
-            password=password,
-        )
-
-        # Return success message
-        return jsonify({"message": "User registered successfully"}), 201
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-@app.route("/login", methods=["POST"])
-@cross_origin()
-def login():
-    try:
-        # Get user credentials from the request
-        data = request.json
-        email = data["email"]
-        password = data["password"]
-
-        # Here you might want to validate the credentials on your server,
-        # but authentication typically happens on the client side using
-        # Firebase Authentication SDK.
-
-        # You might send a token or some other identifier back to the client.
-
-        return jsonify({"message": "Authentication successful"}), 200 
-    
-    except Exception as e:
-        return jsonify({"error": str(e)}), 401
-    
-@app.route("/users", methods=["GET"])
-@cross_origin()
-def list_users():
-    try:
-        # List all users from Firebase Authentication
-        users = auth.list_users()
-
-        # Extract relevant information for each user
-        user_list = [
-            {"uid": user.uid, "email": user.email} for user in users.users
-        ]
-
-        return jsonify({"users": user_list}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-    # ###############################################################
-# Create a new stock entry
-@app.route('/stocks', methods=['POST'])
-@cross_origin()
-def create_stock():
-    try:
-        data = request.get_json()
-        stock_name = data['stock_name']
-        stock_ticker = data['stock_ticker']
-
-        new_stock_ref = stocks_collection.add({"stock_name": stock_name, "stock_ticker": stock_ticker})
-        new_stock_id = new_stock_ref[1].id  # Assuming the ID is at index 1 in the tuple
-
-        return jsonify({"Stock created Succesfully, id": new_stock_id}), 201
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# Get all stocks
-@app.route("/stocks", methods=["GET"])
-@cross_origin()
-def get_stocks():
-    stocks = stocks_collection.stream()
-    stock_list = [{"id": stock.id, **stock.to_dict()} for stock in stocks]
-    return jsonify(stock_list), 200
-
-
-# Get a specific stock by ID
-@app.route("/stockid/<string:stock_id>", methods=["GET"])
-def get_stock(stock_id):
-    stock = stocks_collection.document(stock_id).get()
-    if stock.exists:
-        return jsonify({"id": stock.id, **stock.to_dict()}), 200
-    else:
-        return jsonify({"error": "Stock not found"}), 404
-
-
-# Update a stock by ID
-@app.route("/stockidupdate/<string:stock_id>", methods=["PUT"])
-@cross_origin()
-def update_stock(stock_id):
-    data = request.get_json()
-    stock_name = data["stock_name"]
-    stock_ticker = data["stock_ticker"]
-
-    stock_ref = stocks_collection.document(stock_id)
-    stock_ref.update({"stock_name": stock_name, "stock_ticker": stock_ticker})
-    return jsonify({"message": "Stock updated successfully"}), 200
-
-
-# Delete a stock by ID
-
-@app.route("/stockiddelete/<string:stock_id>", methods=["DELETE"])
-@cross_origin()
-def delete_stock(stock_id):
-    stock_ref = stocks_collection.document(stock_id)
-    stock_ref.delete()
-    return jsonify({"message": "Stock deleted successfully"}), 200
-
-
-
-# ######################################################################
-# #####################################################################
-# Transaction operation
-
-
-def is_stock_id_valid(stock_id):
-    # Check if the stock_id exists in the 'stocks' collection
-    stock_ref = db.collection('stocks').document(stock_id)
-    return stock_ref.get().exists
-
-def is_valid_transaction_type(transaction_type):
-    return transaction_type.upper() in ['BUY', 'SELL']
-
-# Endpoint to add a new transaction
-@app.route('/transactions', methods=['POST'])
-@cross_origin()
-def add_transaction():
-    try:
-        data = request.get_json()
-
-        # Validate required fields
-        required_fields = ['stock_id', 'quantity', 'total_price','transaction_type']
-        
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
-
-        # Check if the provided stock_id is valid
-        if not is_stock_id_valid(data['stock_id']):
-            return jsonify({'error': f'Invalid stock_id: {data["stock_id"]}'}), 400
-        
-        
-        if not is_valid_transaction_type(data['transaction_type']):
-            return jsonify({"error": "Invalid transaction_type"}), 400
-
-        # Generate a unique transaction ID using uuid
-        transaction_id = str(uuid.uuid4())
-
-        # Get current date
-        current_date = datetime.now().strftime('%Y-%m-%d')
-
-        # Create a new transaction document in Firebase
-        transaction_ref = db.collection('transactions').add({
-            'stock_id': data['stock_id'],
-            'transaction_id': transaction_id,
-            'quantity': data['quantity'],
-            'date': current_date,
-            'total_price': data['total_price'],
-            'transaction_type': data['transaction_type'].upper(),
-        })
-
-        return jsonify({'success': True, 'transaction_id': transaction_id}), 201
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/gettransactions', methods=['GET'])
-@cross_origin()
-def get_fulltransactions():
-    try:
-        # Fetch all transactions from Firestore
-        db = firestore.client()  # Get Firestore client
-        transactions_ref = db.collection('transactions')
-        transactions_data = transactions_ref.stream()
-
-        transactions = []
-        for transaction in transactions_data:
-            transaction_data = transaction.to_dict()
-            stock_id = transaction_data['stock_id']
-
-            # Fetch stock name using stock_id
-            stocks_ref = db.collection('stocks')
-            stock_data = stocks_ref.document(stock_id).get().to_dict()
-            stock_name = stock_data['stock_name']
-
-            transactions.append({
-                'transaction_id': transaction.id,
-                'stock_name': stock_name,
-                'transaction_type': transaction_data['transaction_type'],
-                'quantity': transaction_data['quantity'],
-                'date': transaction_data['date'],
-                'total_price': transaction_data['total_price']
-            })
-
-        return jsonify({"transactions": transactions}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-# Endpoint to get all transactions for a single stock
-@app.route('/gettransaction/<stock_id>', methods=['GET'])
-@cross_origin()
-def get_transactions(stock_id):
-    try:
-        # Check if the provided stock_id is valid
-        if not is_stock_id_valid(stock_id):
-            return jsonify({'error': f'Invalid stock_id: {stock_id}'}), 400
-
-        transactions = db.collection('transactions').where('stock_id', '==', stock_id).stream()
-        transaction_list = [{'id': transaction.id, **transaction.to_dict()} for transaction in transactions]
-        return jsonify({'transactions': transaction_list})
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-# #####################################################################
-if __name__ == "__main__":
-    app.run(debug=True)

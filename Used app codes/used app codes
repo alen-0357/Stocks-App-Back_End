@@ -1,0 +1,805 @@
+# # Route for user registration
+# @app.route("/register", methods=["POST"])
+# @cross_origin()
+# def register():
+#     try:
+#         # Get user credentials from the request
+#         data = request.json
+#         email = data["email"]
+#         password = data["password"]
+
+#         # Create a new user with Firebase authentication
+#         user = auth.create_user(
+#             email=email,
+#             email_verified=False,
+#             password=password,
+#         )
+
+#         # Return success message
+#         return jsonify({"message": "User registered successfully"}), 201
+
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 400
+
+# @app.route("/login", methods=["POST"])
+# @cross_origin()
+# def login():
+#     try:
+#         # Get user credentials from the request
+#         data = request.json
+#         email = data["email"]
+#         password = data["password"]
+
+#         # Here you might want to validate the credentials on your server,
+#         # but authentication typically happens on the client side using
+#         # Firebase Authentication SDK.
+
+#         # You might send a token or some other identifier back to the client.
+
+#         return jsonify({"message": "Authentication successful"}), 200 
+    
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 401
+    
+# @app.route("/users", methods=["GET"])
+# @cross_origin()
+# def list_users():
+#     try:
+#         # List all users from Firebase Authentication
+#         users = auth.list_users()
+
+#         # Extract relevant information for each user
+#         user_list = [
+#             {"uid": user.uid, "email": user.email} for user in users.users
+#         ]
+
+#         return jsonify({"users": user_list}), 200
+
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+
+    # ###############################################################
+######################################################
+
+# # Create a new stock entry
+# @app.route('/stocks', methods=['POST'])
+# @cross_origin()
+# def create_stock():
+#     try:
+#         data = request.get_json()
+#         stock_name = data['stock_name']
+#         stock_ticker = data['stock_ticker']
+
+#         new_stock_ref = stocks_collection.add({"stock_name": stock_name, "stock_ticker": stock_ticker})
+#         new_stock_id = new_stock_ref[1].id  # Assuming the ID is at index 1 in the tuple
+
+#         return jsonify({"Stock created Succesfully, id": new_stock_id}), 201
+
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+
+
+# # Get all stocks
+# @app.route("/stocks", methods=["GET"])
+# @cross_origin()
+# def get_stocks():
+#     stocks = stocks_collection.stream()
+#     stock_list = [{"id": stock.id, **stock.to_dict()} for stock in stocks]
+#     return jsonify(stock_list), 200
+
+
+# # Get a specific stock by ID
+# @app.route("/stockid/<string:stock_id>", methods=["GET"])
+# def get_stock(stock_id):
+#     stock = stocks_collection.document(stock_id).get()
+#     if stock.exists:
+#         return jsonify({"id": stock.id, **stock.to_dict()}), 200
+#     else:
+#         return jsonify({"error": "Stock not found"}), 404
+
+
+# # Update a stock by ID
+# @app.route("/stockidupdate/<string:stock_id>", methods=["PUT"])
+# @cross_origin()
+# def update_stock(stock_id):
+#     data = request.get_json()
+#     stock_name = data["stock_name"]
+#     stock_ticker = data["stock_ticker"]
+
+#     stock_ref = stocks_collection.document(stock_id)
+#     stock_ref.update({"stock_name": stock_name, "stock_ticker": stock_ticker})
+#     return jsonify({"message": "Stock updated successfully"}), 200
+
+
+# # Delete a stock by ID
+
+# @app.route("/stockiddelete/<string:stock_id>", methods=["DELETE"])
+# @cross_origin()
+# def delete_stock(stock_id):
+#     stock_ref = stocks_collection.document(stock_id)
+#     stock_ref.delete()
+#     return jsonify({"message": "Stock deleted successfully"}), 200
+
+
+
+# # ######################################################################
+# #####################################################################
+# Transaction operation
+
+
+# def is_stock_id_valid(stock_id):
+#     # Check if the stock_id exists in the 'stocks' collection
+#     stock_ref = db.collection('stocks').document(stock_id)
+#     return stock_ref.get().exists
+
+# def is_valid_transaction_type(transaction_type):
+#     return transaction_type.upper() in ['BUY', 'SELL']
+# ####################################################################################
+# # Endpoint to add a new transaction
+# @app.route('/transactions', methods=['POST'])
+# @cross_origin()
+# def add_transaction():
+#     try:
+#         data = request.get_json()
+
+#         # Validate required fields
+#         required_fields = ['stock_id', 'quantity', 'total_price','transaction_type']
+        
+#         for field in required_fields:
+#             if field not in data:
+#                 return jsonify({'error': f'Missing required field: {field}'}), 400
+
+#         # Check if the provided stock_id is valid
+#         if not is_stock_id_valid(data['stock_id']):
+#             return jsonify({'error': f'Invalid stock_id: {data["stock_id"]}'}), 400
+        
+        
+#         if not is_valid_transaction_type(data['transaction_type']):
+#             return jsonify({"error": "Invalid transaction_type"}), 400
+
+#         # Generate a unique transaction ID using uuid
+#         transaction_id = str(uuid.uuid4())
+
+#         # Get current date
+#         current_date = datetime.now().strftime('%Y-%m-%d')
+
+#         # Create a new transaction document in Firebase
+#         transaction_ref = db.collection('transactions').add({
+#             'stock_id': data['stock_id'],
+#             'transaction_id': transaction_id,
+#             'quantity': data['quantity'],
+#             'date': current_date,
+#             'total_price': data['total_price'],
+#             'transaction_type': data['transaction_type'].upper(),
+#         })
+
+#         return jsonify({'success': True, 'transaction_id': transaction_id}), 201
+
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
+# ###################################################################################################
+# @app.route('/gettransactions', methods=['GET'])
+# @cross_origin()
+# def get_fulltransactions():
+#     try:
+#         # Fetch all transactions from Firestore
+#         db = firestore.client()  # Get Firestore client
+#         transactions_ref = db.collection('transactions')
+#         transactions_data = transactions_ref.stream()
+
+#         transactions = []
+#         for transaction in transactions_data:
+#             transaction_data = transaction.to_dict()
+#             stock_id = transaction_data['stock_id']
+
+#             # Fetch stock name using stock_id
+#             stocks_ref = db.collection('stocks')
+#             stock_data = stocks_ref.document(stock_id).get().to_dict()
+#             stock_name = stock_data['stock_name']
+
+#             transactions.append({
+#                 'transaction_id': transaction.id,
+#                 'Real id':transaction_data['transaction_id'],
+#                 'stock_name': stock_name,
+#                 'transaction_type': transaction_data['transaction_type'],
+#                 'quantity': transaction_data['quantity'],
+#                 'date': transaction_data['date'],
+#                 'total_price': transaction_data['total_price']
+#             })
+
+#         return jsonify({"transactions": transactions}), 200
+
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+#  #######################################################################################   
+# # Endpoint to get all transactions for a single stock
+# @app.route('/gettransaction/<stock_id>', methods=['GET'])
+# @cross_origin()
+# def get_transactions(stock_id):
+#     try:
+#         # Check if the provided stock_id is valid
+#         if not is_stock_id_valid(stock_id):
+#             return jsonify({'error': f'Invalid stock_id: {stock_id}'}), 400
+
+#         transactions = db.collection('transactions').where('stock_id', '==', stock_id).stream()
+#         transaction_list = [{'id': transaction.id, **transaction.to_dict()} for transaction in transactions]
+#         return jsonify({'transactions': transaction_list})
+
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
+#     ###################################################################
+
+
+
+
+#     # Endpoint to fetch transactions for a specific stock within a date range
+# @app.route("/stocktransactionsreport", methods=["GET"])
+# @cross_origin()
+# def stock_transactions_report():
+#     try:
+#         # Get parameters from the request (stock_id, start_date, end_date)
+#         stock_id = request.args.get("stock_id")
+#         start_date = request.args.get("start_date")
+#         end_date = request.args.get("end_date")
+
+#         # Get user ID from the headers
+#         userId = request.headers.get('Authorization')
+
+#         # Log the received user ID
+#         logging.info(f"Received user ID: {userId}")
+
+#         # Validate parameters if needed
+
+#         # Fetch transactions based on parameters and user ID
+#         transactions_ref = db.collection("transactions")
+
+#         if userId:
+#             transactions_ref = transactions_ref.where("userId", "==", userId)
+
+#         if stock_id:
+#             transactions_ref = transactions_ref.where("stock_id", "==", stock_id)
+
+#         if start_date and end_date:
+#             transactions_ref = transactions_ref.where("date", ">=", start_date).where("date", "<=", end_date)
+
+#         transactions_data = transactions_ref.stream()
+
+#         # Convert transactions data to a list
+#         transactions = []
+#         for transaction in transactions_data:
+#             transaction_data = transaction.to_dict()
+#             transactions.append({
+#                 "transaction_id": transaction.id,
+#                 'transaction_type': transaction_data["transaction_type"],
+#                 "quantity": transaction_data["quantity"],
+#                 "date": transaction_data["date"],
+#                 "total_price": transaction_data["total_price"]
+#             })
+
+#         return jsonify({"transactions": transactions}), 200
+
+#     except Exception as e:
+#         logging.error(f"Error in stock_transactions_report: {e}")
+#         return jsonify({"error": str(e)}), 500
+
+# # Endpoint to get profit for a specific stock within a date range
+# @app.route("/stockprofitreport", methods=["GET"])
+# @cross_origin()
+# def stock_profit_report():
+#     try:
+#         # Get parameters from the request (stock_id, start_date, end_date)
+#         stock_id = request.args.get("stock_id")
+#         start_date = request.args.get("start_date")
+#         end_date = request.args.get("end_date")
+
+#         # Get user ID from the headers
+#         userId = request.headers.get('Authorization')
+
+#         # Log the received user ID
+#         logging.info(f"Received user ID: {userId}")
+
+#         # Validate parameters if needed
+
+#         # Fetch transactions based on parameters and user ID
+#         transactions_ref = db.collection("transactions")
+
+#         if userId:
+#             transactions_ref = transactions_ref.where("userId", "==", userId)
+
+#         if stock_id:
+#             transactions_ref = transactions_ref.where("stock_id", "==", stock_id)
+
+#         if start_date and end_date:
+#             transactions_ref = transactions_ref.where("date", ">=", start_date).where("date", "<=", end_date)
+
+#         transactions_data = transactions_ref.stream()
+
+#         # Calculate profit
+#         total_buy_price = 0
+#         total_sell_price = 0
+
+#         for transaction in transactions_data:
+#             transaction_data = transaction.to_dict()
+#             quantity = float(transaction_data["quantity"])
+#             total_price = float(transaction_data["total_price"])
+#             if transaction_data["transaction_type"] == "BUY":
+#                 total_buy_price += quantity * total_price
+#             elif transaction_data["transaction_type"] == "SELL":
+#                 total_sell_price += quantity * total_price
+
+#         # Ensure that total_sell_price is greater than or equal to total_buy_price
+#         if total_sell_price >= total_buy_price:
+#             profit = total_sell_price - total_buy_price
+#         else:
+#             profit = 0
+
+#         return jsonify({"profit": profit}), 200
+
+#     except Exception as e:
+#         logging.error(f"Error in stock_profit_report: {e}")
+#         return jsonify({"error": str(e)}), 500
+# ##########################################################################
+# ##############################################################################
+# @app.route('/portfolio/<transaction_type>', methods=['GET'])
+# @cross_origin()
+# def get_portfolio(transaction_type):
+#     try:
+#         # Get the user ID from the request headers
+#         user_token = request.headers.get('Authorization')
+#         userId = user_token
+
+#         # Log the received user ID
+#         # logging.info(f"Received user ID: {userId}")
+#         logging.info(f"Received user ID: {userId}, Transaction Type: {transaction_type}")
+
+#         # Dictionary to store stock data
+#         portfolio_data = {}
+
+#         # Query transactions with transaction_type 'BUY' for the specific user
+#         transactions = db.collection('transactions').where('transaction_type', '==',  transaction_type).where('userId', '==', userId).stream()
+
+
+#         # Iterate through transactions
+#         for transaction in transactions:
+#             transaction_data = transaction.to_dict()
+
+#             stock_id = transaction_data['stock_id']
+#             quantity = transaction_data['quantity']
+#             total_price = transaction_data['total_price']
+
+#             # If stock_id is not in portfolio_data, initialize it
+#             if stock_id not in portfolio_data:
+#                 portfolio_data[stock_id] = {
+#                     'stock_name': get_stock_name(stock_id),
+#                     'total_quantity': 0,
+#                     'total_price': 0
+#                 }
+
+#             # Update total_quantity and total_price
+#             portfolio_data[stock_id]['total_quantity'] += quantity
+#             portfolio_data[stock_id]['total_price'] += total_price
+
+#         # Convert the data to a list for JSON response
+#         portfolio_list = list(portfolio_data.values())
+
+#         return jsonify(portfolio_list), 200
+
+#     except firebase_admin.auth.InvalidIdTokenError as e:
+#         return jsonify({"error": "Invalid ID token"}), 401
+#     except firebase_admin.auth.ExpiredIdTokenError as e:
+#         return jsonify({"error": "Expired ID token"}), 401
+#     except Exception as e:
+#         logging.error(f"Error in get_portfolio: {e}")
+#         return jsonify({"error": "Internal server error"}), 500
+
+# def get_stock_name(stock_id):
+#     # Function to get stock_name from stocks collection based on stock_id
+#     stock_doc = db.collection('stocks').document(stock_id).get()
+#     if stock_doc.exists:
+#         return stock_doc.to_dict()['stock_name']
+#     return None
+
+#     # Events 
+#     # Endpoint to add new events
+# @app.route('/addevents', methods=['POST'])
+# @cross_origin()
+# def add_events():
+#     try:
+#         data = request.get_json()
+
+#         # Validate required fields
+#         required_fields = ['stock_id', 'event_description']
+        
+#         for field in required_fields:
+#             if field not in data:
+#                 return jsonify({'error': f'Missing required field: {field}'}), 400
+
+#         # Check if the provided stock_id is valid
+#         if not is_stock_id_valid(data['stock_id']):
+#             return jsonify({'error': f'Invalid stock_id: {data["stock_id"]}'}), 400
+        
+        
+      
+
+#         # Get current date
+#         current_date = datetime.now().strftime('%Y-%m-%d')
+
+#         # Create a new transaction document in Firebase
+#         events_ref = db.collection('events').add({
+#             'stock_id': data['stock_id'],
+            
+#             'event_description': data['event_description'],
+#             'date': current_date
+          
+#         })
+
+#         return jsonify({'Event added successfully!': True}), 201
+
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
+    
+# ####################################################
+# @app.route('/getevents', methods=['GET'])
+# @cross_origin()
+# def getevents():
+#     try:
+#         # Fetch all transactions from Firestore
+#         db = firestore.client()  # Get Firestore client
+#         events_ref = db.collection('events')
+#         events_data = events_ref.stream()
+
+#         events = []
+#         for event in events_data:
+#             events_data = event.to_dict()
+#             stock_id = events_data['stock_id']
+
+#             # Fetch stock name using stock_id
+#             stocks_ref = db.collection('stocks')
+#             stock_data = stocks_ref.document(stock_id).get().to_dict()
+#             stock_name = stock_data['stock_name']
+
+#             events.append({
+#                 # 'event_id': event.id,
+#                 'Event id' : events_data['event_id'],
+#                 'stock_name': stock_name,
+#                 'event_description': events_data['event_description'],
+#                 'date': events_data['date'],
+                
+#             })
+
+#         return jsonify({"events": events}), 200
+
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+# ###############################################################################
+#         # Endpoint to fetch events for a specific stock of a specific user
+# @app.route("/getspecificevents", methods=["GET"])
+# @cross_origin()
+# def stock_events_report():
+#     try:
+#         # Get parameters from the request (stock_id, start_date, end_date)
+#         stock_id = request.args.get("stock_id")
+       
+
+#         # Get user ID from the headers
+#         userId = request.headers.get('Authorization')
+
+#         # Log the received user ID
+#         logging.info(f"Received user ID: {userId}")
+
+#         # Validate parameters if needed
+
+#         # Fetch transactions based on parameters and user ID
+#         events_ref = db.collection("events")
+
+#         if userId:
+#             events_ref = events_ref.where("userId", "==", userId)
+
+#         if stock_id:
+#             events_ref = events_ref.where("stock_id", "==", stock_id)
+
+       
+
+#         events_data = events_ref.stream()
+
+#         # Convert transactions data to a list
+#         events = []
+#         for event in events_data:
+#             events_data = event.to_dict()
+#             events.append({
+                
+#                 "event_description": events_data["event_description"],
+                
+#                 "date": events_data["date"],
+                
+#             })
+#             if not events:
+#              return jsonify({"No event descriptions available for the specified stock"}), 200
+
+#         return jsonify({"events": events}), 200
+        
+#     except Exception as e:
+#         logging.error(f"Error in stock_transactions_report: {e}")
+#         return jsonify({"error": str(e)}), 500
+
+#     ########################################################################
+###############################################################################
+# @app.route('/predict_stock_future_transactions', methods=['POST'])
+# @cross_origin()
+# def predict_stock_future_transactions():
+#     try:
+#         # Get stock_id and end_date from the frontend
+#         stock_id = request.json.get('stock_id')
+#         end_date = request.json.get('end_date')
+
+#         print(f"Received request for stock_id: {stock_id}, end_date: {end_date}")
+#         # Mock stock details for testing purposes, replace this with your actual logic
+#         stock_details = {
+#             'total_price': 100.0,
+#             'quantity': 50,
+#             'transaction_type': 'buy',
+#             'date': '2024-01-26'
+#         }
+
+#         # Create a DataFrame with stock details
+#         stock_df = pd.DataFrame([stock_details])
+
+#         # Feature engineering
+#         stock_df['date'] = pd.to_datetime(stock_df['date'])
+#         stock_df['day_of_week'] = stock_df['date'].dt.dayofweek
+#         stock_df['day_of_month'] = stock_df['date'].dt.day
+#         stock_df['month'] = stock_df['date'].dt.month
+
+#         # Initialize and train the model
+#         model = RandomForestClassifier(random_state=42)
+
+#         # Feature columns for training
+#         features = ['total_price', 'quantity', 'day_of_week', 'day_of_month', 'month']
+
+#         # Train the model (replace this with your actual training logic)
+#         model.fit(stock_df[features], stock_df['transaction_type'])
+
+#         # Predict for the given stock details
+#         features_to_predict = stock_df[features]
+#         predictions = model.predict(features_to_predict)
+
+#         # Map predictions to action ('buy' or 'sell')
+#         actions = ['buy' if prediction == 'buy' else 'sell' for prediction in predictions]
+
+#         result = {
+#             'stock_id': stock_id,
+#             'end_date': end_date,
+#             'predictions': list(zip([end_date] * len(actions), actions))
+#         }
+
+#         return jsonify(result), 200
+
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
+
+###############################################################################
+
+# # Endpoint to upload a document
+# @app.route('/upload_document', methods=['POST'])
+# @cross_origin()
+# def upload_document():
+#     try:
+#         data = request.get_json()
+
+#         # Validate if data is None or not in correct JSON format
+#         if data is None or not isinstance(data, dict):
+#             return jsonify({'error': 'Invalid JSON data provided.'}), 400
+
+#         # Validate required fields
+#         required_fields = [ 'file_name','file_url', 'date']
+#         # 'stock_id',-------/\
+#         for field in required_fields:
+#             if field not in data:
+#                 return jsonify({'error': f'Missing required field: {field}'}), 400
+
+#         # Store document information in Firestore
+#         document_data = {
+#             'stock_id': data['stock_id'],
+#             'file_url': data['file_url'],
+#             'date': data['date'],
+#             'file_name':data['file_name']
+#         }
+#         document_ref = db.collection('uploaded_documents').add(document_data)
+
+#         # Extract document ID from the tuple
+#         document_id = document_ref[1].id if isinstance(document_ref, tuple) else document_ref.id
+
+#         return jsonify({'success': True, 'document_id': document_id}), 201
+#     except ValueError:
+#         return jsonify({'error': 'Invalid JSON data provided.'}), 400
+#     except Exception as e:
+#         error_message = str(e)
+#         print(f"Error uploading document: {error_message}")  # Log the error message
+#         return jsonify({'error': f'Failed to upload document to backend: {error_message}'}), 500
+    
+
+# @app.route('/delete-upload', methods=['POST'])
+# @cross_origin()
+# def delete_upload():
+#     try:
+#         data = request.get_json()
+#         upload_id = data.get('upload_id')
+#          # Print the upload ID in the terminal
+#         print("Upload ID:", upload_id)
+
+#         if upload_id:
+#             # Delete the document from Firestore
+#             db.collection('uploaded_documents').document(upload_id).delete()
+#             return jsonify({'success': True, 'message': 'Upload deleted successfully'})
+#         else:
+#             return jsonify({'success': False, 'message': 'Upload ID not provided'})
+#     except Exception as e:
+#         return jsonify({'success': False, 'message': str(e)})
+       
+# @app.route('/read-pdf', methods=['POST'])
+# @cross_origin()
+# def read_pdf():
+#     data = request.get_json()
+#     prev_uploads = data.get('prevUploads', [])
+#     pdf_summaries = []
+
+#     for upload in prev_uploads:
+#         file_url = upload.get('file_url')
+#         if file_url:
+#             print("PDF URL:", file_url)
+#             # Fetch the PDF file
+#             response = requests.get(file_url)
+#             if response.status_code == 200:
+#                 # Read the first three words of the first page of the PDF
+#                 pdf_data = response.content
+#                 pdf_buffer = io.BytesIO(pdf_data)
+#                 pdf_reader = PdfReader(pdf_buffer)
+#                 first_page_text = pdf_reader.pages[0].extract_text()
+#                 first_three_words = ' '.join(first_page_text.split()[:3])
+#                 pdf_summaries.append(first_three_words)
+#             else:
+#                 print(f"Failed to fetch PDF file from URL: {file_url}")
+#         else:
+#             print("No PDF URL found in the data.")
+
+#     return jsonify({'message': 'PDFs processed', 'pdfSummaries': pdf_summaries})
+
+
+
+# @app.route("/fullstockstransactionsreport", methods=["GET"])
+# @cross_origin()
+# def stock_transactions_report():
+#     try:
+#         # Get parameters from the request
+#         stock_id = request.args.get("stock_id")
+#         user_id = request.headers.get('Authorization')
+
+#         # Validate parameters
+#         if not stock_id or not user_id:
+#             error_message = "Both 'stock_id' and 'user_id' must be provided."
+#             logging.error(error_message)
+#             return jsonify({"error": error_message}), 400
+
+#         # Log the received user ID
+#         logging.info(f"Received user ID: {user_id}")
+
+#         # Fetch transactions based on parameters and user ID
+#         transactions_ref = db.collection("transactions")
+
+#         if user_id:
+#             transactions_ref = transactions_ref.where("userId", "==", user_id)
+
+#         if stock_id:
+#             transactions_ref = transactions_ref.where("stock_id", "==", stock_id)
+
+#         transactions_data = transactions_ref.stream()
+
+#         # Convert transactions data to a list
+#         transactions = []
+#         for transaction in transactions_data:
+#             transaction_data = transaction.to_dict()
+#             transactions.append({
+#                 "transaction_id": transaction.id,
+#                 'transaction_type': transaction_data["transaction_type"],
+#                 "quantity": transaction_data["quantity"],
+#                 "date": transaction_data["date"],
+#                 "total_price": transaction_data["total_price"]
+#             })
+
+#         return jsonify({"transactions": transactions}), 200
+
+#     except Exception as e:
+#         logging.error(f"Error in stock_transactions_report: {e}")
+#         return jsonify({"error": str(e)}), 500
+    
+
+# @app.route("/getprofitperdayreport", methods=["GET"])
+# @cross_origin()
+# def perday_profit_report():
+#     try:
+#         # Get parameters from the request
+#         stock_id = request.args.get("stock_id")
+#         user_id = request.headers.get('Authorization')
+
+#         # Validate parameters
+#         if not stock_id or not user_id:
+#             error_message = "Both 'stock_id' and 'user_id' must be provided."
+#             logging.error(error_message)
+#             return jsonify({"error": error_message}), 400
+
+#         # Log the received user ID
+#         logging.info(f"Received user ID: {user_id}")
+
+#         # Fetch transactions based on parameters and user ID
+#         transactions_ref = db.collection("transactions")
+
+#         if user_id:
+#             transactions_ref = transactions_ref.where("userId", "==", user_id)
+
+#         if stock_id:
+#             transactions_ref = transactions_ref.where("stock_id", "==", stock_id)
+
+#         transactions_data = transactions_ref.stream()
+
+#         # Initialize a list to store daily transaction data
+#         daily_transactions = []
+
+#         # Iterate through transactions and aggregate data for each day
+#         for transaction in transactions_data:
+#             transaction_data = transaction.to_dict()
+#             date = datetime.strptime(transaction_data['date'], '%Y-%m-%d').date()
+
+#             # Convert date to string for use as dictionary key
+#             date_str = date.strftime('%Y-%m-%d')
+
+#             # Sort the daily_transactions list by date
+#             daily_transactions.sort(key=itemgetter('date'))
+
+#             # Initialize daily transaction data if not exists
+#             if not any(d['date'] == date_str for d in daily_transactions):
+#                 daily_transactions.append({
+#                     'date': date_str,
+#                     'total_cost_buy': 0,
+#                     'total_cost_sell': 0,
+#                     'total_revenue_sell': 0
+#                 })
+
+#             if transaction_data['transaction_type'] == 'BUY':
+#                 for item in daily_transactions:
+#                     if item['date'] == date_str:
+#                         item['total_cost_buy'] += transaction_data['quantity'] * transaction_data['total_price']
+#             elif transaction_data['transaction_type'] == 'SELL':
+#                 for item in daily_transactions:
+#                     if item['date'] == date_str:
+#                         item['total_cost_sell'] += transaction_data['quantity'] * transaction_data['total_price']
+#                         item['total_revenue_sell'] += transaction_data['quantity'] * transaction_data['total_price']
+
+#         # Calculate profit or loss percentage for each day
+#         for data in daily_transactions:
+#             total_cost_buy = data['total_cost_buy']
+#             total_cost_sell = data['total_cost_sell']
+#             total_revenue_sell = data['total_revenue_sell']
+
+#             if total_cost_buy == 0:
+#                 # Handle division by zero error
+#                 profit_loss_percentage = 0
+#             else:
+#                 profit_loss_percentage = ((total_revenue_sell - total_cost_buy) / total_cost_buy) * 100
+
+#                  # Round profit/loss percentage to two decimal points
+#             profit_loss_percentage = round(profit_loss_percentage, 2)
+
+#             # Update daily transaction data with profit/loss percentage
+#             data['profit_loss_percentage'] = profit_loss_percentage
+
+            
+
+#         # Return the aggregated daily transactions as JSON
+#         return jsonify({"profit": daily_transactions})
+        
+        
+
+#     except Exception as e:
+#         logging.error(f"Error in stock_transactions_report: {e}")
+#         return jsonify({"error": str(e)}), 500
+    
