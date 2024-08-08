@@ -12,13 +12,16 @@ initialize_firebase_app()
 db = firestore.client()
 stocks_collection = db.collection("stocks")
 
+
+
+
 getstocks_routes = Blueprint('getstocks_routes', __name__)
 getstockid_routes = Blueprint('getstockid_routes', __name__)
 poststocks_routes = Blueprint('poststocks_routes', __name__)
 putstockid_routes = Blueprint('putstockid_routes', __name__)
 delstockid_routes = Blueprint('delstockid_routes', __name__)
 
-
+CORS(getstockid_routes)  # Enable CORS for your Flask app
 
 
 
@@ -48,15 +51,20 @@ def get_stocks():
     stock_list = [{"id": stock.id, **stock.to_dict()} for stock in stocks]
     return jsonify(stock_list), 200
 
-
 # Get a specific stock by ID
-@getstockid_routes.route("/stockid/<string:stock_id>", methods=["GET"])
-def get_stock(stock_id):
-    stock = stocks_collection.document(stock_id).get()
-    if stock.exists:
-        return jsonify({"id": stock.id, **stock.to_dict()}), 200
+@getstockid_routes.route("/specstockid", methods=["GET"])
+@cross_origin()
+def get_stock():
+    stock_id = request.args.get('stock_id')
+    if stock_id:
+        stock = stocks_collection.document(stock_id).get()
+        if stock.exists:
+            return jsonify({"id": stock.id, **stock.to_dict()}), 200
+        else:
+            return jsonify({"error": "Stock not found"}), 404
     else:
-        return jsonify({"error": "Stock not found"}), 404
+        return jsonify({"error": "Missing stock_id parameter"}), 400
+
 
 
 # Update a stock by ID

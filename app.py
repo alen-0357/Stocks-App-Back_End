@@ -30,15 +30,17 @@ from routes.events_routes import getevents_routes,getspecificevents_routes,addev
 from routes.reports_routes import portfolio_routes,stockprofitreport_routes,stocktransactionsreport_routes, predict_stock_future_transactions_routes,fulltransactionsreport_routes,getprofitperdayreport_routes
 ###############################################################
 
+
 app = Flask(__name__)
+CORS(app)  # Enable CORS for your Flask app
 CORS(app, resources={r"/Login/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/stocks/*": {"origins": "http://localhost:3000"}}, methods=["DELETE","GET"])
 CORS(app, resources={r"/delete/*": {"origins": "http://localhost:3000"}}, methods=["DELETE"])
 CORS(app, resources={r"/portfolio_management/*": {"origins": "http://localhost:3000"}}, methods=["GET"])
 CORS(app, resources={r"/view_portfolio/*": {"origins": "http://localhost:3000"}}, methods=["GET","POST"])
 CORS(app, resources={r"/upload_Docs/*": {"origins": "http://localhost:3000"}}, methods=["GET","POST"])
-
-
+CORS(app, resources={r"/Home/*": {"origins": "http://localhost:3000"}}, methods=["DELETE"])
+CORS(app, resources={r"/about_stocks/*": {"origins": "http://localhost:3000"}}, methods=["GET"])
 # # # Initialize Firebase Admin SDK
 # cred = credentials.Certificate("/Pjs/back_end_firebase/stocks-9bc4d-firebase-adminsdk-58bc0-89141fb9ff.json")
 
@@ -83,4 +85,137 @@ app.register_blueprint(predict_stock_future_transactions_routes)
 app.register_blueprint(fulltransactionsreport_routes)  
 app.register_blueprint(getprofitperdayreport_routes)  
 
+posts_collection = db.collection('posts')
 
+@app.route('/upload_post', methods=['POST'])
+@cross_origin()
+def upload_post():
+    try:
+        data = request.get_json()
+        user_id = request.headers.get('Authorization')
+
+        if not user_id:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        post_content = data.get('content')
+        image_url = data.get('image_url', '')  # Get the image URL if provided
+
+        if not post_content:
+            return jsonify({"error": "Post content is required"}), 400
+
+        # Create a new post document
+        post = {
+            'user_id': user_id,
+            'content': post_content,
+            'image_url': image_url,  # Include the image URL in the post
+            'timestamp': firestore.SERVER_TIMESTAMP
+        }
+        posts_collection.add(post)
+
+        return jsonify({"success": True, "message": "Post uploaded successfully"}), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+@app.route('/posts', methods=['GET'])
+@cross_origin()
+def get_posts():
+    try:
+        # Fetch posts from Firestore
+        posts_ref = db.collection('posts')
+        posts = []
+
+        for doc in posts_ref.stream():
+            post_data = doc.to_dict()
+            post_data['id'] = doc.id  # Add document ID as 'id' field
+            posts.append(post_data)
+
+        return jsonify(posts), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/user/<string:user_id>')
+@cross_origin()
+def get_user_info(user_id):
+    try:
+        # Fetch user details from Firebase Authentication
+        user = auth.get_user(user_id)
+        
+        # Extract relevant user information
+        user_info = {
+            'uid': user.uid,
+            'email': user.email,
+            
+            # Add more fields as needed
+        }
+        print(f"Received request for {user_info} ")
+
+        return jsonify(user_info), 200
+    except auth.AuthError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+
+    
+
+# Route to delete a post
+@app.route('/delete_post/<string:post_id>', methods=['DELETE'])
+@cross_origin()
+def delete_post(post_id):
+    try:
+        # Get the user making the request
+        user_token = request.headers.get('Authorization')
+        user_id = user_token
+
+        # Get the post from Firestore
+        post_ref = db.collection('posts').document(post_id)
+        post = post_ref.get()
+        if not post.exists:
+            return jsonify({'error': 'Post not found'}), 404
+
+        post_data = post.to_dict()
+        
+        # Check if the user is the owner of the post
+        if post_data['user_id'] != user_id:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        # Delete the post
+        post_ref.delete()
+        return jsonify({'success': True}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# # Route to like a post
+# @app.route('/like_post/<post_id>', methods=['POST'])
+# @cross_origin()
+# def like_post(post_id):
+#     try:
+#         # Simulate getting user ID from Authorization header
+#         user_id = request.headers.get('Authorization')
+
+#         # Fetch post document
+#         post_ref = db.collection('posts').document(post_id)
+#         post = post_ref.get()
+
+#         if not post.exists:
+#             return jsonify({'error': 'Post not found'}), 404
+
+#         # Check if user has already liked the post
+#         if user_id in post.to_dict().get('likes', []):
+#             return jsonify({'success': False, 'message': 'Already liked this post'}), 200
+
+#         # Add user ID to likes array
+#         post_ref.update({
+#             'likes': firestore.ArrayUnion([user_id])
+#         })
+
+#         # Fetch updated post data
+#         updated_post = post_ref.get().to_dict()
+
+#         return jsonify({'success': True, 'likes': updated_post.get('likes', [])}), 200
+
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500

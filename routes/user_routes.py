@@ -20,3 +20,5 @@ def list_users():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
