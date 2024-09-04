@@ -11,6 +11,9 @@ import os
 from google.auth.transport import requests
 from operator import itemgetter
 
+from datetime import datetime, timedelta
+import random
+
 
 import io
 import requests
@@ -187,6 +190,45 @@ def delete_post(post_id):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+    # For realtime chart
+
+
+    # Generate initial data for the past month
+def generate_initial_data():
+    data = []
+    current_time = datetime.now()
+    for i in range(15):
+        day = current_time - timedelta(days=i)
+        price = random.uniform(100, 200)  # Random price between 100 and 200
+        data.append({"date": day.strftime("%Y-%m-%d %H:%M"), "price": price})
+    return list(reversed(data))
+
+# Store initial data
+stock_data = generate_initial_data()
+
+@app.route('/api/stock-data', methods=['GET'])
+@cross_origin()
+def get_stock_data():
+    return jsonify(stock_data)
+
+@app.route('/api/update-price', methods=['GET'])
+@cross_origin()
+def update_price():
+    global stock_data
+    # Simulate price update
+    last_price = stock_data[-1]['price']
+    new_price = last_price + random.uniform(-5, 5)  # Random fluctuation
+    stock_data.append({
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "price": new_price
+    })
+    # Keep only the last 10 days of data
+    stock_data = stock_data[-10:]
+    return jsonify(stock_data)
+
+    ###################################
+
 
 # # Route to like a post
 # @app.route('/like_post/<post_id>', methods=['POST'])
